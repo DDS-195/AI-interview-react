@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "envId": "dds-dev-d7gavk8f1a829c17d",
+  "version": "2.0",
+  "functionRoot": "./functions",
+  "functions": [
+    {
+      "name": "ai-interview-backend",
+      "timeout": 60,
+      "runtime": "Nodejs18",
+      "handler": "server.main",
+      "envVariables": {
+        "PORT": "3001",
+        "AI_API_BASE_URL": "https://api.deepseek.com",
+        "AI_MODEL": "deepseek-chat",
+        "NODE_ENV": "production",
+        "TCB_SERVERLESS": "true"
+      }
+    }
+  ]
+}
