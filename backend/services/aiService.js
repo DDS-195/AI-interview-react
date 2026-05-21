@@ -2,7 +2,7 @@ const axios = require('axios')
 
 const API_KEY = process.env.AI_API_KEY
 const BASE_URL = process.env.AI_API_BASE_URL
-const MODEL = process.env.AI_MODEL || 'deepseek-chat'
+const MODEL = process.env.AI_MODEL || 'your-model-name'
 
 function checkConfig() {
   if (!API_KEY || API_KEY.includes('替换')) {

@@ -1,6 +1,6 @@
 import type { AIEvaluation } from '../types'
 
-const CLOUDBASE_GATEWAY = 'https://dds-dev-d7gavk8f1a829c17d-1408042328.ap-shanghai.app.tcloudbase.com'
+const CLOUDBASE_GATEWAY = import.meta.env.VITE_CLOUDBASE_GATEWAY || ''
 
 const BACKEND_API_BASE_URL = import.meta.env.PROD
   ? `${CLOUDBASE_GATEWAY}/api`

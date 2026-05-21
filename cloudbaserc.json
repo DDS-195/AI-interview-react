@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
-  "envId": "dds-dev-d7gavk8f1a829c17d",
+  "envId": "your-env-id",
   "version": "2.0",
   "functionRoot": "./functions",
   "functions": [
@@ -11,8 +11,8 @@
       "handler": "server.main",
       "envVariables": {
         "PORT": "3001",
-        "AI_API_BASE_URL": "https://api.deepseek.com",
-        "AI_MODEL": "deepseek-chat",
+        "AI_API_BASE_URL": "your-api-base-url",
+        "AI_MODEL": "your-model-name",
         "NODE_ENV": "production",
         "TCB_SERVERLESS": "true"
       }
