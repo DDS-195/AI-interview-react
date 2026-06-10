@@ -8,28 +8,33 @@ const {
 } = require('../prompts/questionPrompts')
 
 function parseMetadata(lines) {
-  const last = lines[lines.length - 1]?.trim() || ''
+  // 从底部向上扫描，找包含 difficulty 的 JSON 行
+  for (let i = lines.length - 1; i >= 0 && i >= lines.length - 4; i--) {
+    const line = lines[i].trim()
+    if (!line) continue
 
-  // 整行就是 JSON
-  try {
-    const meta = JSON.parse(last)
-    if (meta.difficulty && ['easy', 'medium', 'hard'].includes(meta.difficulty)) {
-      return { difficulty: meta.difficulty, topic: meta.topic || '', bodyLines: lines.slice(0, -1) }
-    }
-  } catch {}
-
-  // JSON 拼接在最后一行末尾，提取末尾 {...} 对象
-  const tailMatch = last.match(/\{[^{}]*"difficulty"[^{}]*\}$/)
-  if (tailMatch) {
+    // 整行就是 JSON
     try {
-      const meta = JSON.parse(tailMatch[0])
-      if (meta.difficulty && ['easy', 'medium', 'hard'].includes(meta.difficulty)) {
-        const cleanedLast = last.slice(0, -tailMatch[0].length).trim()
-        const bodyLines = lines.slice(0, -1)
-        if (cleanedLast) bodyLines.push(cleanedLast)
-        return { difficulty: meta.difficulty, topic: meta.topic || '', bodyLines: bodyLines.filter(Boolean) }
+      const meta = JSON.parse(line)
+      if (meta && typeof meta === 'object' && meta.difficulty
+        && ['easy', 'medium', 'hard'].includes(meta.difficulty)) {
+        lines.splice(i, 1)
+        return { difficulty: meta.difficulty, topic: meta.topic || '', bodyLines: lines.filter(Boolean) }
       }
     } catch {}
+
+    // JSON 拼接在行末尾
+    const tailMatch = line.match(/\{[^{}]*"difficulty"[^{}]*\}$/)
+    if (tailMatch) {
+      try {
+        const meta = JSON.parse(tailMatch[0])
+        if (meta && meta.difficulty && ['easy', 'medium', 'hard'].includes(meta.difficulty)) {
+          const cleaned = line.slice(0, -tailMatch[0].length).trim()
+          lines[i] = cleaned
+          return { difficulty: meta.difficulty, topic: meta.topic || '', bodyLines: lines.filter(Boolean) }
+        }
+      } catch {}
+    }
   }
 
   return { difficulty: 'medium', topic: '', bodyLines: lines }
@@ -63,21 +68,15 @@ router.post('/generate-question', async (req, res) => {
     const maxTokens = category === 'coding' ? 500 : 180
     const response = await callAI(systemPrompt, userPrompt, { temperature: 0.9, max_tokens: maxTokens })
 
-    // 解析 JSON 元信息
-    let title = '', content = '', difficulty = 'medium', topic = ''
-    const jsonMatch = response.match(/\{[\s\S]*"difficulty"[\s\S]*\}/)
-    if (jsonMatch) {
-      try {
-        const meta = JSON.parse(jsonMatch[0])
-        difficulty = ['easy', 'medium', 'hard'].includes(meta.difficulty) ? meta.difficulty : 'medium'
-        topic = meta.topic || ''
-      } catch {}
-    }
-
-    const bodyText = response.replace(/\{[\s\S]*"difficulty"[\s\S]*\}/, '').trim()
-    const lines = bodyText.split('\n').filter(Boolean)
-    title = lines[0]?.replace(/^#+\s*/, '').replace(/^\*\*/, '').replace(/\*\*$/, '').trim() || `${category} 面试题`
-    content = lines.slice(1).join('\n').trim() || bodyText
+    // 解析 JSON 元信息（复用流式端的 parseMetadata）
+    const lines = response.split('\n')
+    const { difficulty: parsedDiff, topic: parsedTopic, bodyLines } = parseMetadata(lines)
+    const difficulty = parsedDiff
+    const topic = parsedTopic || ''
+    const bodyText = bodyLines.join('\n').trim()
+    const displayLines = bodyText.split('\n').filter(Boolean)
+    const title = displayLines[0]?.replace(/^#+\s*/, '').replace(/^\*\*/, '').replace(/\*\*$/, '').trim() || `${category} 面试题`
+    let content = displayLines.slice(1).join('\n').trim() || bodyText
 
     // 非 coding 类题目截断更短
     const maxLen = category === 'coding' ? 600 : 280
@@ -118,7 +117,10 @@ router.post('/generate-question-stream', async (req, res) => {
       const contentLines = fullContent.split('\n').filter(Boolean)
       const { difficulty, topic, bodyLines } = parseMetadata(contentLines)
       const title = bodyLines[0]?.replace(/^#+\s*/, '').replace(/^\*\*/, '').replace(/\*\*$/, '').trim() || '题目'
-      const body = bodyLines.slice(1).join('\n').trim() || fullContent
+      // 再次确保 body 中没有残留的 JSON 元数据
+      let body = bodyLines.slice(1).join('\n').trim()
+      body = body.replace(/\n?\{[^{}]*"difficulty"[^{}]*\}/g, '').trim()
+      if (!body) body = fullContent.replace(/\n?\{[^{}]*"difficulty"[^{}]*\}/g, '').trim()
       res.write(`data: ${JSON.stringify({ done: true, title, body, difficulty, topic })}\n\n`)
       res.end()
     }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom'
+import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { Layout, ConfigProvider, theme } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import Sidebar from './components/Sidebar'
@@ -10,7 +10,13 @@ import { QuestionProvider, useQuestionContext, CATEGORIES } from './contexts/Que
 import { FavoriteProvider, useFavoriteContext } from './contexts/FavoriteContext'
 import { HistoryProvider, useHistoryContext } from './contexts/HistoryContext'
 import { EvaluationProvider } from './contexts/EvaluationContext'
+import { ThemeProvider, useThemeContext } from './contexts/ThemeContext'
+import ThemeToggle from './components/ThemeToggle'
+import { initCloudBase, restoreFromCloud } from './utils/cloudSync'
+import { loadQuestions, loadFavorites, loadHistory } from './utils/localStorage'
 import './styles.css'
+import MobileNav from './components/MobileNav'
+import MobileTopBar from './components/MobileTopBar'
 
 const { Content } = Layout
 
@@ -28,11 +34,33 @@ function AppLayout() {
   const { selectedCategoryId, selectCategory } = useQuestionContext()
   const { loadFavoritesFromStorage } = useFavoriteContext()
   const { loadHistoryFromStorage } = useHistoryContext()
+  const { isDark, toggleTheme } = useThemeContext()
 
+  // 加载本地数据
   useEffect(() => {
     loadFavoritesFromStorage()
     loadHistoryFromStorage()
   }, [loadFavoritesFromStorage, loadHistoryFromStorage])
+
+  // 云端同步：启动时拉取合并，然后本地变化会自动推
+  useEffect(() => {
+    initCloudBase().then(ok => {
+      if (!ok) return
+      restoreFromCloud(
+        loadQuestions() || [],
+        loadFavorites() || [],
+        loadHistory() || [],
+      ).then(({ questions, favorites, history }) => {
+        // 云端数据更新到 localStorage，下次加载时生效
+        if (questions.length > 0) localStorage.setItem('ai_interview_questions', JSON.stringify(questions))
+        if (favorites.length > 0) localStorage.setItem('ai_interview_favorites', JSON.stringify(favorites))
+        if (history.length > 0) localStorage.setItem('ai_interview_history', JSON.stringify(history))
+        // 数据可能变了，重新加载
+        loadFavoritesFromStorage()
+        loadHistoryFromStorage()
+      })
+    })
+  }, []) // 只跑一次
 
   const handleSelectCategory = useCallback((categoryId: string) => {
     selectCategory(categoryId)
@@ -58,11 +86,13 @@ function AppLayout() {
         selectedCategoryId={selectedCategoryId}
         activeView={activeView}
         collapsed={collapsed}
+        isDark={isDark}
         onCollapse={setCollapsed}
         onSelectCategory={handleSelectCategory}
         onShowHistory={handleShowHistory}
         onShowFavorites={handleShowFavorites}
         onShowQuestions={handleShowQuestions}
+        onToggleTheme={toggleTheme}
       />
       <Layout>
         <Content className="app-content">
@@ -75,16 +105,29 @@ function AppLayout() {
           </div>
         </Content>
       </Layout>
+      <ThemeToggle isDark={isDark} onToggle={toggleTheme} />
+      <MobileTopBar
+        categories={CATEGORIES}
+        selectedCategoryId={selectedCategoryId}
+        onSelectCategory={handleSelectCategory}
+      />
+      <MobileNav
+        activeView={activeView}
+        onShowQuestions={handleShowQuestions}
+        onShowFavorites={handleShowFavorites}
+        onShowHistory={handleShowHistory}
+      />
     </Layout>
   )
 }
 
-export default function App() {
+function AppInner() {
+  const { isDark } = useThemeContext()
   return (
     <ConfigProvider
       locale={zhCN}
       theme={{
-        algorithm: theme.defaultAlgorithm,
+        algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
         token: {
           colorPrimary: '#5b5ef7',
           borderRadius: 8,
@@ -92,7 +135,9 @@ export default function App() {
         }
       }}
     >
-      <BrowserRouter>
+      <HashRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <QuestionProvider>
           <FavoriteProvider>
             <HistoryProvider>
@@ -102,7 +147,15 @@ export default function App() {
             </HistoryProvider>
           </FavoriteProvider>
         </QuestionProvider>
-      </BrowserRouter>
+      </HashRouter>
     </ConfigProvider>
+  )
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppInner />
+    </ThemeProvider>
   )
 }

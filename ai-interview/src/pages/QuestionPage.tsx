@@ -37,7 +37,40 @@ export default function QuestionPage() {
   const [answerText, setAnswerText] = useState('')
   const [messageApi, contextHolder] = message.useMessage()
 
-  // ref 避免 handleNextQuestion 依赖 currentQuestions.length
+  // 答案草稿：按题目 ID 保存/恢复（500ms 防抖）
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const draftQidRef = useRef<string | null>(null)
+
+  // 切题时恢复草稿
+  useEffect(() => {
+    if (currentQuestion) {
+      const draft = localStorage.getItem(`ai_draft_${currentQuestion.id}`)
+      setAnswerText(draft || '')
+      draftQidRef.current = currentQuestion.id
+    } else {
+      setAnswerText('')
+      draftQidRef.current = null
+    }
+  }, [currentQuestion?.id])
+
+  // 输入变化时保存草稿
+  useEffect(() => {
+    const qid = draftQidRef.current
+    if (!qid) return
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current)
+    draftTimerRef.current = setTimeout(() => {
+      if (answerText.trim()) {
+        localStorage.setItem(`ai_draft_${qid}`, answerText)
+      } else {
+        localStorage.removeItem(`ai_draft_${qid}`)
+      }
+    }, 500)
+    return () => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current)
+    }
+  }, [answerText])
+
+  // ref 避免闭包陷阱：始终持有 currentQuestions.length 最新值
   const questionsLenRef = useRef(currentQuestions.length)
   questionsLenRef.current = currentQuestions.length
 
@@ -48,7 +81,7 @@ export default function QuestionPage() {
   // getExistingTitles 内部用 ref 读取最新值，不需要 useMemo 缓存
   const existingTitles = getExistingTitles()
 
-  const { isStreaming, streamingContent, streamingTitle, hasStarted, startStreaming } = useQuestionStream({
+  const { isStreaming, streamingContent, streamingTitle, hasStarted, startStreaming, abortStream } = useQuestionStream({
     categoryId: selectedCategoryId,
     existingTitles,
     onQuestionGenerated: handleQuestionGenerated
@@ -58,9 +91,13 @@ export default function QuestionPage() {
   useEffect(() => {
     setAnswerText('')
     resetEvaluation()
-    if (currentQuestions.length === 0 && !isStreaming) {
-      startStreaming()
-    }
+    abortStream()
+    const t = setTimeout(() => {
+      if (questionsLenRef.current === 0) {
+        startStreaming()
+      }
+    }, 0)
+    return () => clearTimeout(t)
   }, [selectedCategoryId])
 
   const handleNextQuestion = useCallback(() => {
@@ -92,10 +129,15 @@ export default function QuestionPage() {
 
   const handleSubmitAnswer = useCallback(async () => {
     if (!currentQuestion || !answerText.trim()) return
-    addHistoryRecord(currentQuestion.id, answerText)
     try {
-      await evaluateAnswerWithAI(currentQuestion.content, answerText)
+      const evalResult = await evaluateAnswerWithAI(currentQuestion.content, answerText)
+      addHistoryRecord(currentQuestion.id, answerText, evalResult ? {
+        score: evalResult.score,
+        correctAnswer: evalResult.correctAnswer,
+        feedback: evalResult.feedback
+      } : undefined)
     } catch {
+      addHistoryRecord(currentQuestion.id, answerText)
       messageApi.error('评估失败，请检查后端服务是否正常')
     }
   }, [currentQuestion, answerText, addHistoryRecord, evaluateAnswerWithAI, messageApi])
@@ -108,6 +150,7 @@ export default function QuestionPage() {
   return (
     <>
       {contextHolder}
+      <div className="question-page-inner">
       <QuestionView
         currentQuestion={currentQuestion}
         currentQuestionIndex={currentQuestionIndex}
@@ -115,6 +158,7 @@ export default function QuestionPage() {
         hasStarted={hasStarted}
         nextButtonText={currentQuestionIndex < currentQuestions.length - 1 ? '下一题' : '生成新题目'}
         isFavorite={currentQuestion ? isFavorite(currentQuestion.id) : false}
+        isCodingCategory={isCodingCategory}
         streamingContent={streamingContent}
         streamingTitle={streamingTitle}
         isStreaming={isStreaming}
@@ -139,6 +183,7 @@ export default function QuestionPage() {
         visible={showEvaluation}
         onClose={closeEvaluation}
       />
+      </div>
     </>
   )
 }

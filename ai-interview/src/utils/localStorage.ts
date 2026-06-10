@@ -49,6 +49,18 @@ export function loadHistory(): unknown[] | null {
   return loadFromLocalStorage<unknown[]>(HISTORY_KEY)
 }
 
+// 历史记录详情（大字段拆分存储）
+const HISTORY_DETAIL_PREFIX = 'ai_history_detail_'
+export function saveHistoryDetail(submittedAt: string, detail: { correctAnswer?: string; feedback?: string }) {
+  saveToLocalStorage(HISTORY_DETAIL_PREFIX + submittedAt, detail)
+}
+export function loadHistoryDetail(submittedAt: string): { correctAnswer?: string; feedback?: string } | null {
+  return loadFromLocalStorage<{ correctAnswer?: string; feedback?: string }>(HISTORY_DETAIL_PREFIX + submittedAt)
+}
+export function removeHistoryDetail(submittedAt: string) {
+  try { localStorage.removeItem(HISTORY_DETAIL_PREFIX + submittedAt) } catch {}
+}
+
 export function saveQuestions(questions: unknown[]) {
   saveDeferred(QUESTIONS_KEY, questions)
 }

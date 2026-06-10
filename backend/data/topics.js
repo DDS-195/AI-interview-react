@@ -24,6 +24,14 @@ const TOPICS = {
     '异步组件与Suspense', '自定义指令', '组合式函数(Composables)',
     'Teleport与Fragment', 'Transition动画', 'Vue编译器原理(模板→render)'
   ],
+  'react': [
+    'JSX语法与虚拟DOM', '函数组件与类组件', 'Hooks原理与使用规则',
+    'useState/useEffect/useRef', 'useMemo/useCallback性能优化', 'useContext状态共享',
+    '自定义Hooks设计模式', 'React Router路由管理', '状态管理(Redux/Zustand)',
+    '组件通信(props/context/回调)', '受控与非受控组件', 'Fragment与Portals',
+    '高阶组件与Render Props', 'React Fiber调度机制', 'Suspense与错误边界',
+    '服务端渲染(Next.js/Remix)', '合成事件与事件委托', '性能优化(React.memo/lazy)'
+  ],
   'jquery': [
     '选择器引擎与链式调用', 'DOM操作与批量更新', '事件绑定与委托',
     'AJAX封装与Promise化', '动画队列与自定义动画', '插件开发模式',
@@ -40,6 +48,20 @@ const TOPICS = {
     '扩展运算符与剩余参数', 'Class与继承', 'Symbol与迭代器',
     'Set/Map/WeakSet/WeakMap', 'Proxy与Reflect', 'Promise.allSettled/any',
     '可选链(?.)与空值合并(??)', '动态import', '顶层await'
+  ],
+  'typescript': [
+    '基础类型与类型推断', 'interface与type区别', '泛型与泛型约束',
+    '工具类型(Partial/Pick/Omit等)', '联合类型与交叉类型', '类型守卫与类型收窄',
+    '枚举(const enum vs 普通enum)', '模块声明与全局类型', '条件类型与 infer',
+    '装饰器原理与使用', 'tsconfig常用配置', '类型兼容性与结构化类型',
+    'declare与.d.ts声明文件'
+  ],
+  'performance': [
+    '首屏加载优化', '代码分割与懒加载', 'Tree Shaking原理',
+    '图片优化(WebP/懒加载/响应式)', '关键渲染路径优化', 'requestAnimationFrame使用',
+    'Web Worker与计算密集任务', '虚拟列表与长列表优化', '防抖节流应用场景',
+    '资源预加载(prefetch/preload)', 'Core Web Vitals指标', '浏览器缓存策略',
+    'Service Worker与PWA', '打包体积分析与优化'
   ],
   'network': [
     'TCP三次握手四次挥手', 'HTTP状态码与语义', 'HTTPS握手与证书链',
@@ -89,9 +111,12 @@ const CATEGORY_NAMES = {
   'html-css': 'HTML/CSS',
   'javascript': 'JavaScript',
   'vue': 'Vue',
+  'react': 'React',
   'jquery': 'jQuery',
   'nodejs': 'Node.js',
   'es6': 'ES6+',
+  'typescript': 'TypeScript',
+  'performance': '性能优化',
   'network': '计算机网络',
   'browser': '浏览器原理',
   'engineering': '工程化',

@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo } from 'react'
-import { Layout, Menu } from 'antd'
+import { Layout, Menu, Button } from 'antd'
 import {
   QuestionCircleOutlined,
   HistoryOutlined,
@@ -15,7 +15,12 @@ import {
   ChromeOutlined,
   WifiOutlined,
   ToolOutlined,
-  RocketOutlined
+  RocketOutlined,
+  ThunderboltOutlined,
+  FileProtectOutlined,
+  DashboardOutlined,
+  SunOutlined,
+  MoonOutlined
 } from '@ant-design/icons'
 import type { Category } from '../types'
 
@@ -25,9 +30,12 @@ const categoryIcons: Record<string, React.ReactNode> = {
   'html-css': <Html5Outlined />,
   'javascript': <CodeOutlined />,
   'vue': <DeploymentUnitOutlined />,
+  'react': <ThunderboltOutlined />,
   'jquery': <ApiOutlined />,
   'nodejs': <CloudServerOutlined />,
   'es6': <ExperimentOutlined />,
+  'typescript': <FileProtectOutlined />,
+  'performance': <DashboardOutlined />,
   'network': <WifiOutlined />,
   'browser': <ChromeOutlined />,
   'engineering': <ToolOutlined />,
@@ -41,11 +49,13 @@ interface SidebarProps {
   selectedCategoryId: string
   activeView: string
   collapsed: boolean
+  isDark: boolean
   onCollapse: (collapsed: boolean) => void
   onSelectCategory: (categoryId: string) => void
   onShowHistory: () => void
   onShowFavorites: () => void
   onShowQuestions: () => void
+  onToggleTheme: () => void
 }
 
 export default memo(function Sidebar({
@@ -53,11 +63,13 @@ export default memo(function Sidebar({
   selectedCategoryId,
   activeView,
   collapsed,
+  isDark,
   onCollapse,
   onSelectCategory,
   onShowHistory,
   onShowFavorites,
-  onShowQuestions
+  onShowQuestions,
+  onToggleTheme
 }: SidebarProps) {
   const navItems = [
     { key: 'questions', icon: <QuestionCircleOutlined />, label: '面试题目', onClick: onShowQuestions },
@@ -94,6 +106,15 @@ export default memo(function Sidebar({
       <div className="sidebar-logo">
         <div className="logo-icon">AI</div>
         {!collapsed && <span>AI 面试助手</span>}
+        {!collapsed && (
+          <Button
+            type="text"
+            className="sidebar-theme-btn"
+            icon={isDark ? <SunOutlined /> : <MoonOutlined />}
+            onClick={onToggleTheme}
+            title={isDark ? '切换亮色模式' : '切换暗色模式'}
+          />
+        )}
       </div>
 
       <Menu

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useMemo, useRef, useEffect, type ReactNode } from 'react'
 import type { Question, Category } from '../types'
 import { saveQuestions, loadQuestions } from '../utils/localStorage'
+import { uploadCollection } from '../utils/cloudSync'
 
 interface QuestionContextType {
   questions: Question[]
@@ -16,6 +17,8 @@ interface QuestionContextType {
   addQuestion: (q: Question) => void
   setCurrentQuestionIndex: (index: number) => void
   getExistingTitles: () => string[]
+  getQuestionById: (id: string) => Question | undefined
+  getAllQuestions: () => Question[]
 }
 
 const QuestionContext = createContext<QuestionContextType | null>(null)
@@ -24,9 +27,12 @@ const CATEGORIES: Category[] = [
   { id: 'html-css', name: 'HTML/CSS' },
   { id: 'javascript', name: 'JavaScript' },
   { id: 'vue', name: 'Vue' },
+  { id: 'react', name: 'React' },
   { id: 'jquery', name: 'jQuery' },
   { id: 'nodejs', name: 'Node.js' },
   { id: 'es6', name: 'ES6+' },
+  { id: 'typescript', name: 'TypeScript' },
+  { id: 'performance', name: '性能优化' },
   { id: 'network', name: '计算机网络' },
   { id: 'browser', name: '浏览器原理' },
   { id: 'engineering', name: '工程化' },
@@ -43,19 +49,25 @@ function isValidQuestion(q: unknown): q is Question {
 }
 
 export function QuestionProvider({ children }: { children: ReactNode }) {
-  const [questions, setQuestions] = useState<Question[]>(() => {
+  // 缓存池：存 localStorage 里的全部题目，收藏/历史用它查
+  const questionCacheRef = useRef<Map<string, Question>>(new Map())
+  useEffect(() => {
     const saved = loadQuestions()
     if (saved && Array.isArray(saved)) {
-      return saved.filter(isValidQuestion)
+      saved.filter(isValidQuestion).forEach(q => questionCacheRef.current.set(q.id, q))
     }
-    return []
-  })
+  }, [])
+
+  // 活跃列表：当前会话的题目，启动时空
+  const [questions, setQuestions] = useState<Question[]>([])
   const [selectedCategoryId, setSelectedCategoryId] = useState('html-css')
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
 
-  // 题目变化时延迟持久化
+  // 活跃题目变化时同步到缓存和持久化
   useEffect(() => {
-    saveQuestions(questions)
+    questions.forEach(q => questionCacheRef.current.set(q.id, q))
+    saveQuestions(Array.from(questionCacheRef.current.values()))
+    uploadCollection('questions', Array.from(questionCacheRef.current.values()))
   }, [questions])
 
   // refs 避免闭包陷阱
@@ -109,6 +121,17 @@ export function QuestionProvider({ children }: { children: ReactNode }) {
       .map(q => q.title)
   }, [])
 
+  const getQuestionById = useCallback((id: string) => {
+    // 先查活跃列表，再查缓存
+    const active = questionsRef.current.find(q => q.id === id)
+    if (active) return active
+    return questionCacheRef.current.get(id)
+  }, [])
+
+  const getAllQuestions = useCallback(() => {
+    return Array.from(questionCacheRef.current.values())
+  }, [])
+
   const value = useMemo(() => ({
     questions,
     selectedCategoryId,
@@ -122,7 +145,9 @@ export function QuestionProvider({ children }: { children: ReactNode }) {
     refreshQuestion,
     addQuestion,
     setCurrentQuestionIndex,
-    getExistingTitles
+    getExistingTitles,
+    getQuestionById,
+    getAllQuestions,
   }), [
     questions,
     selectedCategoryId,
@@ -136,7 +161,9 @@ export function QuestionProvider({ children }: { children: ReactNode }) {
     refreshQuestion,
     addQuestion,
     setCurrentQuestionIndex,
-    getExistingTitles
+    getExistingTitles,
+    getQuestionById,
+    getAllQuestions,
   ])
 
   return (

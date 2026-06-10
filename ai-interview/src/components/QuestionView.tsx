@@ -1,10 +1,11 @@
-import { Button, Space, Spin, Card } from 'antd'
+import { Button, Space, Skeleton, Card } from 'antd'
 import {
   LeftOutlined,
   RightOutlined,
   StarOutlined,
   StarFilled,
-  ReloadOutlined
+  ReloadOutlined,
+  QuestionCircleOutlined
 } from '@ant-design/icons'
 import type { Question } from '../types'
 
@@ -15,6 +16,7 @@ interface QuestionViewProps {
   hasStarted: boolean
   nextButtonText: string
   isFavorite: boolean
+  isCodingCategory: boolean
   streamingContent: string
   streamingTitle: string
   isStreaming: boolean
@@ -31,6 +33,7 @@ export default function QuestionView({
   hasStarted,
   nextButtonText,
   isFavorite,
+  isCodingCategory,
   streamingContent,
   streamingTitle,
   isStreaming,
@@ -97,11 +100,18 @@ export default function QuestionView({
         </div>
       )}
 
-      {/* 流式已发起但首个chunk尚未到达 */}
+      {/* 骨架屏：代码题5行，其他3行 */}
       {isStreaming && !hasStarted && (
-        <div className="loading-container">
-          <Spin size="large" />
-          <span className="loading-text">正在生成题目...</span>
+        <div className="skeleton-container">
+          <Skeleton
+            active
+            title={{ width: '60%' }}
+            paragraph={
+              isCodingCategory
+                ? { rows: 5, width: ['90%', '85%', '70%', '80%', '50%'] }
+                : { rows: 3, width: ['90%', '70%', '50%'] }
+            }
+          />
         </div>
       )}
 
@@ -158,12 +168,3 @@ export default function QuestionView({
   )
 }
 
-function QuestionCircleOutlined() {
-  return (
-    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity={0.3}>
-      <circle cx="12" cy="12" r="10"/>
-      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-      <line x1="12" y1="17" x2="12.01" y2="17"/>
-    </svg>
-  )
-}

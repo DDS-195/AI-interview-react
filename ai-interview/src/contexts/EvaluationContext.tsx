@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useState, useRef, useCallback, useMemo, type ReactNode } from 'react'
 import type { AIEvaluation } from '../types'
 import { evaluateAIAnswer } from '../utils/aiRequest'
 
@@ -6,7 +6,7 @@ interface EvaluationContextType {
   isEvaluatingAnswer: boolean
   aiEvaluationResult: AIEvaluation | null
   showEvaluation: boolean
-  evaluateAnswerWithAI: (questionContent: string, answerText: string) => Promise<void>
+  evaluateAnswerWithAI: (questionContent: string, answerText: string) => Promise<AIEvaluation | null>
   closeEvaluation: () => void
   resetEvaluation: () => void
 }
@@ -17,10 +17,12 @@ export function EvaluationProvider({ children }: { children: ReactNode }) {
   const [isEvaluatingAnswer, setIsEvaluatingAnswer] = useState(false)
   const [aiEvaluationResult, setAiEvaluationResult] = useState<AIEvaluation | null>(null)
   const [showEvaluation, setShowEvaluation] = useState(false)
+  const evaluatingRef = useRef(false)
 
   const evaluateAnswerWithAI = useCallback(async (questionContent: string, answerText: string) => {
-    if (!answerText.trim() || isEvaluatingAnswer) return
+    if (!answerText.trim() || evaluatingRef.current) return null
 
+    evaluatingRef.current = true
     setIsEvaluatingAnswer(true)
     setAiEvaluationResult(null)
     setShowEvaluation(false)
@@ -29,12 +31,12 @@ export function EvaluationProvider({ children }: { children: ReactNode }) {
       const evaluation = await evaluateAIAnswer(questionContent, answerText)
       setAiEvaluationResult(evaluation)
       setShowEvaluation(true)
-    } catch (error) {
-      throw error
+      return evaluation
     } finally {
+      evaluatingRef.current = false
       setIsEvaluatingAnswer(false)
     }
-  }, [isEvaluatingAnswer])
+  }, [])
 
   const closeEvaluation = useCallback(() => setShowEvaluation(false), [])
   const resetEvaluation = useCallback(() => {

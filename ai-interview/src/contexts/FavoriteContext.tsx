@@ -1,12 +1,14 @@
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
 import type { FavoriteQuestion } from '../types'
 import { saveFavorites, loadFavorites } from '../utils/localStorage'
+import { uploadCollection } from '../utils/cloudSync'
 
 interface FavoriteContextType {
   favoriteQuestions: FavoriteQuestion[]
   toggleFavorite: (questionId: string) => void
   isFavorite: (questionId: string) => boolean
   removeFavorite: (fav: FavoriteQuestion) => void
+  clearAll: () => void
   loadFavoritesFromStorage: () => void
 }
 
@@ -14,6 +16,11 @@ const FavoriteContext = createContext<FavoriteContextType | null>(null)
 
 export function FavoriteProvider({ children }: { children: ReactNode }) {
   const [favoriteQuestions, setFavoriteQuestions] = useState<FavoriteQuestion[]>([])
+
+  // 云同步
+  useEffect(() => {
+    uploadCollection('favorites', favoriteQuestions)
+  }, [favoriteQuestions])
 
   const toggleFavorite = useCallback((questionId: string) => {
     setFavoriteQuestions(prev => {
@@ -41,6 +48,11 @@ export function FavoriteProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const clearAll = useCallback(() => {
+    setFavoriteQuestions([])
+    saveFavorites([])
+  }, [])
+
   const loadFavoritesFromStorage = useCallback(() => {
     const saved = loadFavorites()
     if (saved && Array.isArray(saved)) {
@@ -49,8 +61,8 @@ export function FavoriteProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(() => ({
-    favoriteQuestions, toggleFavorite, isFavorite, removeFavorite, loadFavoritesFromStorage
-  }), [favoriteQuestions, toggleFavorite, isFavorite, removeFavorite, loadFavoritesFromStorage])
+    favoriteQuestions, toggleFavorite, isFavorite, removeFavorite, clearAll, loadFavoritesFromStorage
+  }), [favoriteQuestions, toggleFavorite, isFavorite, removeFavorite, clearAll, loadFavoritesFromStorage])
 
   return (
     <FavoriteContext.Provider value={value}>

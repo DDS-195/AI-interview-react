@@ -68,6 +68,24 @@ body {
   letter-spacing: 0.5px;
 }
 
+.sidebar-theme-btn {
+  margin-left: auto;
+  color: rgba(255,255,255,.5) !important;
+  font-size: 16px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px !important;
+  transition: color var(--transition);
+}
+
+.sidebar-theme-btn:hover {
+  color: #fff !important;
+  background: rgba(255,255,255,.08) !important;
+}
+
 .sidebar-logo .logo-icon {
   width: 32px;
   height: 32px;
@@ -135,7 +153,7 @@ body {
 }
 
 .app-content-inner {
-  max-width: 860px;
+  max-width: 1060px;
   margin: 0 auto;
 }
 
@@ -369,7 +387,7 @@ body {
   font-size: 14px;
   color: var(--text);
   white-space: pre-wrap;
-  line-height: 1.7;
+  line-height: 1.85;
 }
 
 .eval-suggestion-item {
@@ -393,6 +411,142 @@ body {
   flex-shrink: 0;
 }
 
+/* ====== 历史/收藏页（含饼图） ====== */
+.page-with-chart {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.page-chart-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-chart-right {
+  width: 320px;
+  flex-shrink: 0;
+}
+
+.pie-chart-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  padding: 20px;
+  overflow: visible;
+}
+
+.pie-chart-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.pie-chart-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 40px 0;
+  font-size: 13px;
+}
+
+.pie-chart-stats {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.pie-chart-stat-group {
+  display: flex;
+  gap: 24px;
+}
+
+.pie-chart-stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 6px 0;
+}
+
+.pie-chart-stat-num {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.pie-chart-stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.pie-chart-stat-minilist {
+  margin-top: 10px;
+}
+
+.pie-chart-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.pie-chart-stat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pie-chart-stat-name {
+  flex: 1;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pie-chart-stat-val {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+[data-theme='dark'] .pie-chart-card {
+  background: #1a1a1a;
+  border-color: #2a2a2a;
+}
+
+[data-theme='dark'] .pie-chart-title {
+  color: #e0e0e0;
+}
+
+[data-theme='dark'] .pie-chart-stats {
+  border-top-color: #2a2a2a;
+}
+
+/* 中等屏幕（769-1000px）：饼图自动换到列表上方 */
+@media (min-width: 769px) and (max-width: 1000px) {
+  .app-content-inner {
+    max-width: 100% !important;
+    padding: 0 16px;
+  }
+
+  .page-with-chart {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .page-chart-left {
+    width: 100%;
+  }
+
+  .page-chart-right {
+    width: 100%;
+    order: -1;
+  }
+}
+
 /* ====== 历史/收藏页 ====== */
 .page-card {
   border-radius: var(--radius-lg) !important;
@@ -413,14 +567,6 @@ body {
   gap: 8px;
 }
 
-.list-item-tag {
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-weight: 500;
-  flex-shrink: 0;
-}
-
 .list-item-date {
   font-size: 12px;
   color: var(--text-muted);
@@ -433,21 +579,12 @@ body {
   color: var(--text-muted);
 }
 
+/* ====== 骨架屏 ====== */
+.skeleton-container {
+  padding: 24px;
+}
+
 /* ====== 加载状态 ====== */
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 40px;
-  gap: 16px;
-}
-
-.loading-container .loading-text {
-  color: var(--text-muted);
-  font-size: 14px;
-}
-
 /* ====== Ant Design 覆写 ====== */
 .ant-menu-inline .ant-menu-item {
   width: calc(100% - 16px) !important;
@@ -456,6 +593,71 @@ body {
 .ant-progress-circle .ant-progress-text {
   font-size: 28px !important;
   font-weight: 700 !important;
+}
+
+/* ====== 主题切换按钮（桌面端隐藏，移动端由 styles-mobile.css 显示） ====== */
+.theme-toggle {
+  display: none;
+}
+
+/* ====== 暗色模式适配 ====== */
+[data-theme='dark'] .app-sidebar {
+  background: linear-gradient(180deg, #0d1520 0%, #0a1a2e 100%) !important;
+  box-shadow: 2px 0 24px rgba(0,0,0,.35);
+}
+
+[data-theme='dark'] body {
+  background: #0d1117;
+}
+
+[data-theme='dark'] .app-content {
+  background: #0d1117 !important;
+}
+
+[data-theme='dark'] .content-body {
+  background: #252525;
+  color: #d4d4d4;
+  border-left-color: var(--primary-light);
+}
+
+[data-theme='dark'] .eval-section {
+  background: #252525;
+}
+
+[data-theme='dark'] .eval-section-content {
+  color: #d4d4d4;
+}
+
+[data-theme='dark'] .empty-state h3 {
+  color: #aaa;
+}
+
+[data-theme='dark'] .page-indicator {
+  color: #888;
+}
+
+/* 暗色模式：卡片背景更深 */
+[data-theme='dark'] .question-card,
+[data-theme='dark'] .answer-card,
+[data-theme='dark'] .page-card {
+  background: #1a1a1a !important;
+  border-color: #2a2a2a !important;
+}
+
+[data-theme='dark'] .question-card .ant-card-head,
+[data-theme='dark'] .answer-card .ant-card-head,
+[data-theme='dark'] .page-card .ant-card-head {
+  border-bottom-color: #2a2a2a !important;
+}
+
+[data-theme='dark'] .theme-toggle {
+  background: #2a2a2a;
+  color: #e0e0e0;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+
+[data-theme='dark'] .theme-toggle:hover {
+  background: #3a3a3a;
 }
 
 /* 响应式 */

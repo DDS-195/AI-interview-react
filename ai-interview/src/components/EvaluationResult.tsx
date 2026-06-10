@@ -1,11 +1,6 @@
 import { Modal, Progress } from 'antd'
 import type { AIEvaluation } from '../types'
-
-function getScoreColor(score: number): string {
-  if (score >= 80) return '#10b981'
-  if (score >= 60) return '#f59e0b'
-  return '#ef4444'
-}
+import { getScoreColor, formatParagraphs } from '../utils/format'
 
 function getScoreLabel(score: number): string {
   if (score >= 90) return '优秀'
@@ -45,7 +40,7 @@ export default function EvaluationResult({
           type="circle"
           percent={evaluationResult.score}
           strokeColor={{ '0%': color, '100%': color }}
-          size={130}
+          size={100}
           format={percent => `${percent}`}
         />
         <div className="eval-score-text" style={{ color }}>
@@ -55,13 +50,13 @@ export default function EvaluationResult({
 
       <div className="eval-section">
         <div className="eval-section-title">评估反馈</div>
-        <div className="eval-section-content">{evaluationResult.feedback}</div>
+        <div className="eval-section-content">{formatParagraphs(evaluationResult.feedback)}</div>
       </div>
 
       {evaluationResult.correctAnswer && (
         <div className="eval-section">
           <div className="eval-section-title">参考答案 / 改进方向</div>
-          <div className="eval-section-content">{evaluationResult.correctAnswer}</div>
+          <div className="eval-section-content">{formatParagraphs(evaluationResult.correctAnswer)}</div>
         </div>
       )}
 

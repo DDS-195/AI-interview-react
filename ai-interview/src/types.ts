@@ -16,6 +16,9 @@ export interface HistoryRecord {
   questionId: string
   answer: string
   submittedAt: string
+  score?: number
+  correctAnswer?: string
+  feedback?: string
 }
 
 export interface FavoriteQuestion {

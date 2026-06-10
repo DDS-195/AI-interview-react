@@ -14,22 +14,33 @@ interface UseQuestionStreamReturn {
   streamingTitle: string
   hasStarted: boolean
   startStreaming: () => void
+  abortStream: () => void
 }
 
 function stripTrailingJSON(text: string): string {
   const lines = text.split('\n')
   const last = lines[lines.length - 1]?.trim() || ''
 
+  // 最后一行整个就是 JSON 元数据
   if (/^\{[^{}]*"difficulty"[^{}]*\}$/.test(last)) {
     return lines.slice(0, -1).join('\n').trim()
   }
 
+  // JSON 拼在最后一行末尾
   const tailMatch = last.match(/\{[^{}]*"difficulty"[^{}]*\}$/)
   if (tailMatch) {
     const cleaned = last.slice(0, -tailMatch[0].length).trim()
     lines[lines.length - 1] = cleaned
     return lines.filter(Boolean).join('\n')
   }
+
+  // 兜底：尝试 JSON.parse 检测是否包含元数据
+  try {
+    const parsed = JSON.parse(last)
+    if (parsed && parsed.difficulty) {
+      return lines.slice(0, -1).join('\n').trim()
+    }
+  } catch {}
 
   return text
 }
@@ -102,6 +113,10 @@ export function useQuestionStream({
   const lastCleanRef = useRef('')
   const { displayText: streamingContent, push: pushTypewriter, finish: finishTypewriter, reset: resetTypewriter } = useTypewriter()
 
+  // ref 用于 startStreaming 守卫，避免闭包读到的 isStreaming 是旧值
+  const isStreamingRef = useRef(isStreaming)
+  isStreamingRef.current = isStreaming
+
   const existingTitlesRef = useRef(existingTitles)
   existingTitlesRef.current = existingTitles
   const categoryIdRef = useRef(categoryId)
@@ -116,7 +131,7 @@ export function useQuestionStream({
   }, [])
 
   const startStreaming = useCallback(() => {
-    if (isStreaming) return
+    if (isStreamingRef.current) return
 
     abortRef.current?.abort()
     resetTypewriter()
@@ -153,11 +168,13 @@ export function useQuestionStream({
           type: cid === 'coding' ? 'code' : 'text'
         }
         onGeneratedRef.current(newQuestion)
+        isStreamingRef.current = false
         setIsStreaming(false)
         setHasStarted(false)
       },
       (error: string) => {
         console.error('生成题目失败:', error)
+        isStreamingRef.current = false
         setIsStreaming(false)
         setHasStarted(false)
       }
@@ -166,5 +183,13 @@ export function useQuestionStream({
     abortRef.current = controller
   }, [isStreaming, resetTypewriter, pushTypewriter, finishTypewriter])
 
-  return { isStreaming, streamingContent, streamingTitle, hasStarted, startStreaming }
+  const abortStream = useCallback(() => {
+    abortRef.current?.abort()
+    isStreamingRef.current = false
+    setIsStreaming(false)
+    setHasStarted(false)
+    resetTypewriter()
+  }, [resetTypewriter])
+
+  return { isStreaming, streamingContent, streamingTitle, hasStarted, startStreaming, abortStream }
 }
