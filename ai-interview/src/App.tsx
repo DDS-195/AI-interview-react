@@ -1,83 +1,50 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom'
+// 应用装配：组合主题、数据和练习状态 Provider，路由切换只替换页面内容。
+import { useState, useCallback, useMemo } from 'react'
+import { HashRouter, useNavigate, useLocation } from 'react-router-dom'
 import { Layout, ConfigProvider, theme } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import Sidebar from './components/Sidebar'
-import QuestionPage from './pages/QuestionPage'
-import HistoryPage from './pages/HistoryPage'
-import FavoritesPage from './pages/FavoritesPage'
 import { QuestionProvider, useQuestionContext, CATEGORIES } from './contexts/QuestionContext'
-import { FavoriteProvider, useFavoriteContext } from './contexts/FavoriteContext'
-import { HistoryProvider, useHistoryContext } from './contexts/HistoryContext'
+import { FavoriteProvider } from './contexts/FavoriteContext'
+import { HistoryProvider } from './contexts/HistoryContext'
+import { DataProvider } from './contexts/DataContext'
 import { EvaluationProvider } from './contexts/EvaluationContext'
 import { ThemeProvider, useThemeContext } from './contexts/ThemeContext'
 import ThemeToggle from './components/ThemeToggle'
-import { initCloudBase, restoreFromCloud } from './utils/cloudSync'
-import { loadQuestions, loadFavorites, loadHistory } from './utils/localStorage'
 import './styles.css'
+import './styles-learning.css'
 import MobileNav from './components/MobileNav'
 import MobileTopBar from './components/MobileTopBar'
+import AppRoutes from './components/AppRoutes'
+import ErrorBoundary from './components/ErrorBoundary'
+import { NAVIGATION } from './navigation'
 
 const { Content } = Layout
-
 function AppLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
 
   const activeView = useMemo(() => {
-    if (location.pathname === '/history') return 'history'
-    if (location.pathname === '/favorites') return 'favorites'
-    return 'questions'
+    return NAVIGATION.find((item) => item.path === location.pathname)?.key || 'questions'
   }, [location.pathname])
 
   const { selectedCategoryId, selectCategory } = useQuestionContext()
-  const { loadFavoritesFromStorage } = useFavoriteContext()
-  const { loadHistoryFromStorage } = useHistoryContext()
   const { isDark, toggleTheme } = useThemeContext()
 
-  // 加载本地数据
-  useEffect(() => {
-    loadFavoritesFromStorage()
-    loadHistoryFromStorage()
-  }, [loadFavoritesFromStorage, loadHistoryFromStorage])
-
-  // 云端同步：启动时拉取合并，然后本地变化会自动推
-  useEffect(() => {
-    initCloudBase().then(ok => {
-      if (!ok) return
-      restoreFromCloud(
-        loadQuestions() || [],
-        loadFavorites() || [],
-        loadHistory() || [],
-      ).then(({ questions, favorites, history }) => {
-        // 云端数据更新到 localStorage，下次加载时生效
-        if (questions.length > 0) localStorage.setItem('ai_interview_questions', JSON.stringify(questions))
-        if (favorites.length > 0) localStorage.setItem('ai_interview_favorites', JSON.stringify(favorites))
-        if (history.length > 0) localStorage.setItem('ai_interview_history', JSON.stringify(history))
-        // 数据可能变了，重新加载
-        loadFavoritesFromStorage()
-        loadHistoryFromStorage()
-      })
-    })
-  }, []) // 只跑一次
-
-  const handleSelectCategory = useCallback((categoryId: string) => {
-    selectCategory(categoryId)
-    navigate('/')
-  }, [selectCategory, navigate])
+  const handleSelectCategory = useCallback(
+    (categoryId: string) => {
+      selectCategory(categoryId)
+      navigate('/')
+    },
+    [selectCategory, navigate]
+  )
 
   const handleShowQuestions = useCallback(() => {
     navigate('/')
   }, [navigate])
 
-  const handleShowHistory = useCallback(() => {
-    navigate('/history')
-  }, [navigate])
-
-  const handleShowFavorites = useCallback(() => {
-    navigate('/favorites')
-  }, [navigate])
+  const handleNavigate = useCallback((path: string) => navigate(path), [navigate])
 
   return (
     <Layout className="app-layout">
@@ -89,23 +56,20 @@ function AppLayout() {
         isDark={isDark}
         onCollapse={setCollapsed}
         onSelectCategory={handleSelectCategory}
-        onShowHistory={handleShowHistory}
-        onShowFavorites={handleShowFavorites}
-        onShowQuestions={handleShowQuestions}
+        onNavigate={handleNavigate}
         onToggleTheme={toggleTheme}
       />
       <Layout>
         <Content className="app-content">
           <div className="app-content-inner">
-            <Routes>
-              <Route path="/" element={<QuestionPage />} />
-              <Route path="/history" element={<HistoryPage onNavigateToQuestion={handleShowQuestions} />} />
-              <Route path="/favorites" element={<FavoritesPage onNavigateToQuestion={handleShowQuestions} />} />
-            </Routes>
+            <AppRoutes onNavigateToQuestion={handleShowQuestions} />
           </div>
         </Content>
       </Layout>
-      <ThemeToggle isDark={isDark} onToggle={toggleTheme} />
+      <ThemeToggle
+        isDark={isDark}
+        onToggle={toggleTheme}
+      />
       <MobileTopBar
         categories={CATEGORIES}
         selectedCategoryId={selectedCategoryId}
@@ -113,9 +77,7 @@ function AppLayout() {
       />
       <MobileNav
         activeView={activeView}
-        onShowQuestions={handleShowQuestions}
-        onShowFavorites={handleShowFavorites}
-        onShowHistory={handleShowHistory}
+        onNavigate={handleNavigate}
       />
     </Layout>
   )
@@ -131,31 +93,34 @@ function AppInner() {
         token: {
           colorPrimary: '#5b5ef7',
           borderRadius: 8,
-          fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif"
+          fontFamily:
+            "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif"
         }
       }}
     >
-      <HashRouter
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      >
-        <QuestionProvider>
-          <FavoriteProvider>
-            <HistoryProvider>
-              <EvaluationProvider>
-                <AppLayout />
-              </EvaluationProvider>
-            </HistoryProvider>
-          </FavoriteProvider>
-        </QuestionProvider>
-      </HashRouter>
+      <DataProvider>
+        <HashRouter>
+          <QuestionProvider>
+            <FavoriteProvider>
+              <HistoryProvider>
+                <EvaluationProvider>
+                  <AppLayout />
+                </EvaluationProvider>
+              </HistoryProvider>
+            </FavoriteProvider>
+          </QuestionProvider>
+        </HashRouter>
+      </DataProvider>
     </ConfigProvider>
   )
 }
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AppInner />
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AppInner />
+      </ThemeProvider>
+    </ErrorBoundary>
   )
 }

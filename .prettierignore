@@ -1,0 +1,9 @@
+**/node_modules/
+**/dist/
+**/.cache/
+**/storage/
+**/coverage/
+**/.vitest/
+**/*.tsbuildinfo
+**/package-lock.json
+backend/knowledge/

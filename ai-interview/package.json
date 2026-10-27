@@ -1,30 +1,47 @@
 {
-  "name": "ai-interview-react",
+  "name": "ai-frontend-interview-assistant-web",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@cloudbase/js-sdk": "^3.3.13",
+    "@ant-design/icons": "^5.6.1",
+    "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/state": "^6.7.6",
     "@codemirror/theme-one-dark": "^6.1.3",
+    "@codemirror/view": "^6.43.14",
     "antd": "^5.24.0",
-    "codemirror": "^6.0.2",
     "echarts": "^6.1.0",
     "echarts-for-react": "^3.0.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.28.0"
+    "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.3",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^26.1.0",
     "typescript": "~5.7.0",
-    "vite": "^6.0.0"
-  }
+    "vite": "^6.4.4",
+    "vitest": "^4.1.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DDS-195/AI-interview-react.git",
+    "directory": "ai-interview"
+  },
+  "homepage": "https://github.com/DDS-195/AI-interview-react#readme",
+  "bugs": {
+    "url": "https://github.com/DDS-195/AI-interview-react/issues"
+  },
+  "author": "DDS-195",
+  "license": "UNLICENSED"
 }

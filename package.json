@@ -1,0 +1,55 @@
+{
+  "name": "ai-frontend-interview-assistant",
+  "version": "1.0.0",
+  "private": true,
+  "description": "本地运行的AI前端面试助手",
+  "scripts": {
+    "setup": "npm ci && npm --prefix backend ci && npm --prefix ai-interview ci",
+    "dev": "node scripts/dev.js",
+    "db:setup": "npm --prefix backend run db:setup",
+    "db:migrate": "npm --prefix backend run db:migrate",
+    "knowledge:download": "node backend/scripts/download-embedding.js",
+    "knowledge:setup": "node backend/scripts/setup-local-rag.js",
+    "knowledge:import": "node backend/scripts/knowledge.js import",
+    "knowledge:index": "node backend/scripts/knowledge.js index",
+    "knowledge:migrate": "node backend/scripts/simplify-knowledge.js",
+    "test:rag": "node backend/scripts/check-rag.js",
+    "build": "npm --prefix ai-interview run build && node scripts/compress-assets.js",
+    "start": "npm run build && npm --prefix backend start",
+    "test": "npm --prefix ai-interview test && npm --prefix backend test",
+    "format": "prettier --write \"**/*.{js,cjs,mjs,ts,tsx,css,json,html,yml}\"",
+    "format:check": "prettier --check \"**/*.{js,cjs,mjs,ts,tsx,css,json,html,yml}\"",
+    "lint": "eslint . --max-warnings 0",
+    "check": "npm run format:check && npm run lint && npm test && npm run build && node scripts/check-bundle.js"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.5.0",
+    "prettier": "3.9.10",
+    "typescript-eslint": "^8.71.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DDS-195/AI-interview-react.git"
+  },
+  "homepage": "https://github.com/DDS-195/AI-interview-react#readme",
+  "bugs": {
+    "url": "https://github.com/DDS-195/AI-interview-react/issues"
+  },
+  "author": "DDS-195",
+  "license": "UNLICENSED",
+  "keywords": [
+    "react",
+    "typescript",
+    "interview",
+    "llm",
+    "rag",
+    "express",
+    "mysql"
+  ]
+}

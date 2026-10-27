@@ -1,0 +1,23 @@
+name: 功能建议
+description: 提出与技术面试训练相关的改进
+title: '[Feature]: '
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题
+      description: 描述具体使用场景和现有不足。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议行为
+      description: 说明期望结果，以及是否影响出题、评分、数据或知识库。
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 其他可行方式
+      description: 是否可以通过现有功能、文档或更简单的方案解决？

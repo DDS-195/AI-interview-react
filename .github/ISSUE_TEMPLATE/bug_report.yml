@@ -1,0 +1,41 @@
+name: 缺陷报告
+description: 报告可复现的功能或界面问题
+title: '[Bug]: '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请查阅文档和已有 Issue。请勿粘贴模型密钥、数据库密码、私人回答或完整数据导出。
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 发生了什么，预期应该怎样？
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤
+      description: 包括操作顺序、选题范围和最小脱敏输入。
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 运行环境
+      description: 操作系统、浏览器、Node.js、MySQL、当前提交及 RAG 开关。
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 错误与截图
+      description: 提供脱敏错误、状态码或截图；SSE 问题请说明是否收到 done/error。
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 已移除密钥、密码和私人训练内容
+          required: true

@@ -1,49 +1,33 @@
-import { memo, useCallback, useMemo } from 'react'
-import { Layout, Menu, Button } from 'antd'
+// 桌面导航复用分类与路由定义，搜索匹配分类名和知识点名。
+import { memo, useCallback, useMemo, useState, useEffect } from 'react'
+import { Layout, Menu, Button, Input, Select, Popover } from 'antd'
 import {
-  QuestionCircleOutlined,
-  HistoryOutlined,
-  StarOutlined,
   CodeOutlined,
-  Html5Outlined,
-  ApiOutlined,
-  CloudServerOutlined,
-  DeploymentUnitOutlined,
-  BranchesOutlined,
-  BugOutlined,
-  ExperimentOutlined,
-  ChromeOutlined,
-  WifiOutlined,
+  GlobalOutlined,
+  AppstoreOutlined,
   ToolOutlined,
-  RocketOutlined,
-  ThunderboltOutlined,
-  FileProtectOutlined,
-  DashboardOutlined,
+  SearchOutlined,
+  MoreOutlined,
   SunOutlined,
   MoonOutlined
 } from '@ant-design/icons'
 import type { Category } from '../types'
-
+import { APP_NAME } from '../config'
+import {
+  CATEGORY_GROUPS,
+  CURRENT_CATEGORIES,
+  OPTIONAL_CATEGORIES,
+  categoryGroup,
+  categoryTopics
+} from '../utils/catalog'
+import { NAVIGATION } from '../navigation'
 const { Sider } = Layout
-
-const categoryIcons: Record<string, React.ReactNode> = {
-  'html-css': <Html5Outlined />,
-  'javascript': <CodeOutlined />,
-  'vue': <DeploymentUnitOutlined />,
-  'react': <ThunderboltOutlined />,
-  'jquery': <ApiOutlined />,
-  'nodejs': <CloudServerOutlined />,
-  'es6': <ExperimentOutlined />,
-  'typescript': <FileProtectOutlined />,
-  'performance': <DashboardOutlined />,
-  'network': <WifiOutlined />,
-  'browser': <ChromeOutlined />,
-  'engineering': <ToolOutlined />,
-  'git': <BranchesOutlined />,
-  'scenario': <BugOutlined />,
-  'coding': <RocketOutlined />,
+const groupIcons = {
+  foundation: <CodeOutlined />,
+  platform: <GlobalOutlined />,
+  application: <AppstoreOutlined />,
+  quality: <ToolOutlined />
 }
-
 interface SidebarProps {
   categories: Category[]
   selectedCategoryId: string
@@ -51,72 +35,123 @@ interface SidebarProps {
   collapsed: boolean
   isDark: boolean
   onCollapse: (collapsed: boolean) => void
-  onSelectCategory: (categoryId: string) => void
-  onShowHistory: () => void
-  onShowFavorites: () => void
-  onShowQuestions: () => void
+  onSelectCategory: (id: string) => void
+  onNavigate: (path: string) => void
   onToggleTheme: () => void
 }
-
 export default memo(function Sidebar({
-  categories,
   selectedCategoryId,
   activeView,
   collapsed,
   isDark,
   onCollapse,
   onSelectCategory,
-  onShowHistory,
-  onShowFavorites,
-  onShowQuestions,
+  onNavigate,
   onToggleTheme
 }: SidebarProps) {
-  const navItems = [
-    { key: 'questions', icon: <QuestionCircleOutlined />, label: '面试题目', onClick: onShowQuestions },
-    { key: 'favorites', icon: <StarOutlined />, label: '我的收藏', onClick: onShowFavorites },
-    { key: 'history', icon: <HistoryOutlined />, label: '答题历史', onClick: onShowHistory },
-  ]
-
-  const handleNavClick = useCallback(({ key }: { key: string }) => {
-    const item = navItems.find(i => i.key === key)
-    if (item) item.onClick()
-  }, [navItems])
-
-  const handleCatClick = useCallback(({ key }: { key: string }) => {
-    onSelectCategory(key)
-    onShowQuestions()
-  }, [onSelectCategory, onShowQuestions])
-
-  const categoryMenuItems = useMemo(() => categories.map(cat => ({
-    key: cat.id,
-    icon: categoryIcons[cat.id] || <CodeOutlined />,
-    label: cat.name
-  })), [categories])
-
+  const [search, setSearch] = useState('')
+  const [openKeys, setOpenKeys] = useState<string[]>(() => {
+    const group = categoryGroup(selectedCategoryId)
+    return group ? [group.id] : []
+  })
+  useEffect(() => {
+    const group = categoryGroup(selectedCategoryId)
+    setOpenKeys(group ? [group.id] : [])
+  }, [selectedCategoryId])
+  const navItems = NAVIGATION.map(({ key, icon, label }) => ({ key, icon, label }))
+  const handleNavClick = useCallback(
+    ({ key }: { key: string }) => {
+      const item = NAVIGATION.find((item) => item.key === key)
+      if (item) {
+        onNavigate(item.path)
+      }
+    },
+    [onNavigate]
+  )
+  const choose = useCallback(
+    (id: string) => {
+      setSearch('')
+      const group = categoryGroup(id)
+      setOpenKeys(group ? [group.id] : [])
+      onSelectCategory(id)
+    },
+    [onSelectCategory]
+  )
+  const menuItems = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    if (term) {
+      return CURRENT_CATEGORIES.filter((category) =>
+        [category.name, ...categoryTopics(category.id).map((topic) => topic.name)].some((label) =>
+          label.toLowerCase().includes(term)
+        )
+      ).map((category) => ({
+        key: category.id,
+        label: (
+          <span className="category-search-label">
+            <span>{category.name}</span>
+            <small>{categoryGroup(category.id)?.name || '专项拓展'}</small>
+          </span>
+        )
+      }))
+    }
+    return CATEGORY_GROUPS.map((group) => ({
+      key: group.id,
+      icon: groupIcons[group.id as keyof typeof groupIcons],
+      label: (
+        <span className="category-group-label">
+          {group.name}
+          {group.categories.includes(selectedCategoryId) && (
+            <span
+              className="category-group-dot"
+              aria-label="当前分组"
+            />
+          )}
+        </span>
+      ),
+      children: group.categories.map((id) => ({
+        key: id,
+        label: CURRENT_CATEGORIES.find((category) => category.id === id)!.name
+      }))
+    }))
+  }, [search, selectedCategoryId])
+  const specialSelect = (
+    <Select
+      aria-label="专项方向"
+      placeholder="选择专项方向"
+      value={
+        OPTIONAL_CATEGORIES.some((category) => category.id === selectedCategoryId)
+          ? selectedCategoryId
+          : undefined
+      }
+      options={OPTIONAL_CATEGORIES.map((category) => ({
+        value: category.id,
+        label: category.name
+      }))}
+      onChange={choose}
+      className="sidebar-special-select"
+    />
+  )
   return (
     <Sider
       collapsible
       collapsed={collapsed}
       onCollapse={onCollapse}
-      width={220}
+      width={232}
       className="app-sidebar"
       breakpoint="lg"
       style={{ overflow: 'auto' }}
     >
-      <div className="sidebar-logo">
+      <div className={`sidebar-logo${collapsed ? ' sidebar-logo-collapsed' : ''}`}>
         <div className="logo-icon">AI</div>
-        {!collapsed && <span>AI 面试助手</span>}
-        {!collapsed && (
-          <Button
-            type="text"
-            className="sidebar-theme-btn"
-            icon={isDark ? <SunOutlined /> : <MoonOutlined />}
-            onClick={onToggleTheme}
-            title={isDark ? '切换亮色模式' : '切换暗色模式'}
-          />
-        )}
+        {!collapsed && <span>{APP_NAME}</span>}
+        <Button
+          type="text"
+          className="sidebar-theme-btn"
+          icon={isDark ? <SunOutlined /> : <MoonOutlined />}
+          onClick={onToggleTheme}
+          aria-label={isDark ? '切换亮色模式' : '切换暗色模式'}
+        />
       </div>
-
       <Menu
         mode="inline"
         selectedKeys={[activeView]}
@@ -124,18 +159,61 @@ export default memo(function Sidebar({
         items={navItems}
         onClick={handleNavClick}
       />
-
-      <div className="sidebar-section-title">
-        {!collapsed && '题目分类'}
-      </div>
-
+      <div className="sidebar-section-title">{!collapsed && '题目分类'}</div>
+      {!collapsed && (
+        <div className="sidebar-category-search">
+          <Input
+            aria-label="搜索分类或知识点"
+            placeholder="搜索分类或知识点"
+            prefix={<SearchOutlined />}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            allowClear
+          />
+        </div>
+      )}
       <Menu
         mode="inline"
-        selectedKeys={activeView === 'questions' ? [selectedCategoryId] : []}
-        className="sidebar-cat-menu"
-        items={categoryMenuItems}
-        onClick={handleCatClick}
+        theme="dark"
+        triggerSubMenuAction="click"
+        inlineIndent={16}
+        selectedKeys={[selectedCategoryId]}
+        openKeys={collapsed ? undefined : openKeys}
+        onOpenChange={(keys) =>
+          setOpenKeys(
+            keys.length
+              ? [keys.find((key) => !openKeys.includes(key)) || keys[keys.length - 1]]
+              : []
+          )
+        }
+        className={`sidebar-cat-menu${search.trim() ? ' sidebar-search-results' : ''}`}
+        items={menuItems}
+        onClick={({ key }) => choose(key)}
       />
+      {search.trim() && !menuItems.length && (
+        <div className="sidebar-search-empty">未找到分类或知识点</div>
+      )}
+      <div className="sidebar-extensions">
+        {collapsed ? (
+          <Popover
+            trigger="click"
+            placement="right"
+            title="专项拓展"
+            content={specialSelect}
+          >
+            <Button
+              type="text"
+              icon={<MoreOutlined />}
+              aria-label="专项拓展"
+            />
+          </Popover>
+        ) : (
+          <>
+            <span>专项拓展</span>
+            {specialSelect}
+          </>
+        )}
+      </div>
     </Sider>
   )
 })

@@ -1,60 +1,78 @@
-import { memo, useCallback } from 'react'
-
-interface MobileNavProps {
-  activeView: string
-  onShowQuestions: () => void
-  onShowFavorites: () => void
-  onShowHistory: () => void
-}
+// 手机主导航保留常用训练入口，收藏和历史通过更多菜单进入。
+import { memo, useState } from 'react'
+import { Button, Drawer } from 'antd'
+import { MoreOutlined } from '@ant-design/icons'
+import { NAVIGATION } from '../navigation'
 
 export default memo(function MobileNav({
   activeView,
-  onShowQuestions,
-  onShowFavorites,
-  onShowHistory
-}: MobileNavProps) {
-  const handleClick = useCallback((view: string) => {
-    if (view === 'favorites') onShowFavorites()
-    else if (view === 'history') onShowHistory()
-    else onShowQuestions()
-  }, [onShowFavorites, onShowHistory, onShowQuestions])
-
+  onNavigate
+}: {
+  activeView: string
+  onNavigate: (path: string) => void
+}) {
+  const [more, setMore] = useState(false)
+  const secondary = NAVIGATION.slice(4)
+  const moreActive = secondary.some((item) => item.key === activeView)
   return (
-    <div className="mobile-nav">
-      <div className="mobile-nav-bar">
-        <button
-          className={`mobile-nav-btn${activeView === 'questions' ? ' active' : ''}`}
-          onClick={() => handleClick('questions')}
-        >
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-            <line x1="12" y1="17" x2="12.01" y2="17"/>
-          </svg>
-          <span className="mobile-nav-label">题目</span>
-        </button>
-
-        <button
-          className={`mobile-nav-btn${activeView === 'favorites' ? ' active' : ''}`}
-          onClick={() => handleClick('favorites')}
-        >
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-          </svg>
-          <span className="mobile-nav-label">收藏</span>
-        </button>
-
-        <button
-          className={`mobile-nav-btn${activeView === 'history' ? ' active' : ''}`}
-          onClick={() => handleClick('history')}
-        >
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <polyline points="12 6 12 12 16 14"/>
-          </svg>
-          <span className="mobile-nav-label">历史</span>
-        </button>
-      </div>
-    </div>
+    <>
+      <nav
+        className="mobile-nav"
+        aria-label="主导航"
+      >
+        <div className="mobile-nav-bar">
+          {NAVIGATION.slice(0, 4).map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={`mobile-nav-btn${activeView === item.key ? ' active' : ''}`}
+              onClick={() => onNavigate(item.path)}
+              aria-current={activeView === item.key ? 'page' : undefined}
+            >
+              {item.icon}
+              <span className="mobile-nav-label">{item.shortLabel}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className={`mobile-nav-btn${moreActive ? ' active' : ''}`}
+            onClick={() => setMore(true)}
+            aria-expanded={more}
+            aria-label="更多页面"
+          >
+            <MoreOutlined />
+            <span className="mobile-nav-label">
+              {secondary.find((item) => item.key === activeView)?.shortLabel || '更多'}
+            </span>
+          </button>
+        </div>
+      </nav>
+      <Drawer
+        title="学习记录"
+        placement="bottom"
+        height="auto"
+        open={more}
+        onClose={() => setMore(false)}
+        rootClassName="learning-more-drawer"
+      >
+        <div className="learning-more-links">
+          {secondary.map((item) => (
+            <Button
+              key={item.key}
+              size="large"
+              icon={item.icon}
+              aria-label={item.label}
+              type={item.key === activeView ? 'primary' : 'default'}
+              onClick={() => {
+                setMore(false)
+                onNavigate(item.path)
+              }}
+            >
+              {item.label}
+            </Button>
+          ))}
+        </div>
+      </Drawer>
+    </>
   )
 })

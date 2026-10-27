@@ -1,46 +1,66 @@
+// 连接收藏摘要、分页和打开练习；离页时取消尚未完成的题目读取。
 import FavoritesView from '../components/FavoritesView'
 import { useQuestionContext, CATEGORIES } from '../contexts/QuestionContext'
 import { useFavoriteContext } from '../contexts/FavoriteContext'
 import type { FavoriteQuestion } from '../types'
+import type { FavoriteListItem } from '../types'
+import { usePagedData } from '../hooks/usePagedData'
+import { message } from 'antd'
+import { useState, useRef, useEffect } from 'react'
 
 interface FavoritesPageProps {
   onNavigateToQuestion: () => void
 }
 
 export default function FavoritesPage({ onNavigateToQuestion }: FavoritesPageProps) {
-  const { questions, selectCategory, setCurrentQuestionIndex, getQuestionById, getAllQuestions, addQuestion } = useQuestionContext()
-  const { favoriteQuestions, removeFavorite, clearAll } = useFavoriteContext()
+  const { getQuestionById, openQuestion } = useQuestionContext()
+  const { removeFavorite, clearAll } = useFavoriteContext()
+  const list = usePagedData<FavoriteListItem>('favorites')
+  const [messageApi, contextHolder] = message.useMessage()
+  const [loadingId, setLoadingId] = useState('')
+  const activeRequest = useRef<AbortController | null>(null)
+  useEffect(() => () => activeRequest.current?.abort(), [])
 
-  const handleLoadFavorite = (fav: FavoriteQuestion) => {
-    const question = getQuestionById(fav.questionId)
-    if (!question) return
-
-    const isInActive = questions.some(q => q.id === fav.questionId)
-
-    selectCategory(question.categoryId)
-
-    if (isInActive) {
-      // 已在活跃列表，直接定位到该题
-      const inCat = questions.filter(q => q.categoryId === question.categoryId)
-      const idx = inCat.findIndex(q => q.id === fav.questionId)
-      if (idx >= 0) setCurrentQuestionIndex(idx)
-    } else {
-      // 不在活跃列表，addQuestion 会自动加到末尾并设 index
-      addQuestion(question)
+  const handleLoadFavorite = async (fav: FavoriteQuestion) => {
+    if (activeRequest.current && !activeRequest.current.signal.aborted) {
+      return
     }
-
-    onNavigateToQuestion()
+    const controller = new AbortController()
+    activeRequest.current = controller
+    setLoadingId(fav.questionId)
+    try {
+      const question = await getQuestionById(fav.questionId, controller.signal)
+      if (controller.signal.aborted) {
+        return
+      }
+      openQuestion(question)
+      onNavigateToQuestion()
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        messageApi.error(error instanceof Error ? error.message : '题目加载失败')
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setLoadingId('')
+      }
+      if (activeRequest.current === controller) {
+        activeRequest.current = null
+      }
+    }
   }
 
   return (
-    <FavoritesView
-      favoriteQuestions={favoriteQuestions}
-      questions={getAllQuestions()}
-      categories={CATEGORIES}
-      onLoadFavorite={handleLoadFavorite}
-      onRemoveFavorite={removeFavorite}
-      onClearAll={clearAll}
-      onBack={onNavigateToQuestion}
-    />
+    <>
+      {contextHolder}
+      <FavoritesView
+        {...list}
+        loadingId={loadingId}
+        categories={CATEGORIES}
+        onLoadFavorite={handleLoadFavorite}
+        onRemoveFavorite={removeFavorite}
+        onClearAll={clearAll}
+        onBack={onNavigateToQuestion}
+      />
+    </>
   )
 }

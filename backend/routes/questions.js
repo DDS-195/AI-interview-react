@@ -1,174 +1,79 @@
+// 普通与流式出题共用业务流程；只有校验并保存成功才发送业务完成事件。
 const express = require('express')
+const { validateInput } = require('../services/questionPlan')
+const { generateQuestion } = require('../services/questionFlow')
+const { fail } = require('../services/aiContract')
+const { aiError } = require('../middleware/errors')
 const router = express.Router()
-const { callAI, callAIStream } = require('../services/aiService')
-const {
-  buildQuestionSystemPrompt,
-  buildQuestionUserPrompt,
-  buildStreamQuestionPrompt
-} = require('../prompts/questionPrompts')
 
-function parseMetadata(lines) {
-  // 从底部向上扫描，找包含 difficulty 的 JSON 行
-  for (let i = lines.length - 1; i >= 0 && i >= lines.length - 4; i--) {
-    const line = lines[i].trim()
-    if (!line) continue
-
-    // 整行就是 JSON
-    try {
-      const meta = JSON.parse(line)
-      if (meta && typeof meta === 'object' && meta.difficulty
-        && ['easy', 'medium', 'hard'].includes(meta.difficulty)) {
-        lines.splice(i, 1)
-        return { difficulty: meta.difficulty, topic: meta.topic || '', bodyLines: lines.filter(Boolean) }
-      }
-    } catch {}
-
-    // JSON 拼接在行末尾
-    const tailMatch = line.match(/\{[^{}]*"difficulty"[^{}]*\}$/)
-    if (tailMatch) {
-      try {
-        const meta = JSON.parse(tailMatch[0])
-        if (meta && meta.difficulty && ['easy', 'medium', 'hard'].includes(meta.difficulty)) {
-          const cleaned = line.slice(0, -tailMatch[0].length).trim()
-          lines[i] = cleaned
-          return { difficulty: meta.difficulty, topic: meta.topic || '', bodyLines: lines.filter(Boolean) }
-        }
-      } catch {}
-    }
+function context(req) {
+  const input = validateInput(req.body)
+  const store = req.app.locals.dataStore
+  if (!store) {
+    fail('本地数据服务未就绪', 503)
   }
-
-  return { difficulty: 'medium', topic: '', bodyLines: lines }
+  return { input, store }
 }
 
-function smartTruncate(text, maxLen) {
-  if (text.length <= maxLen) return text
-  const truncated = text.substring(0, maxLen)
-  const lastPeriod = Math.max(
-    truncated.lastIndexOf('。'), truncated.lastIndexOf('？'),
-    truncated.lastIndexOf('！'), truncated.lastIndexOf('\n'),
-    truncated.lastIndexOf('?'), truncated.lastIndexOf('.')
-  )
-  if (lastPeriod > maxLen * 0.6) return truncated.substring(0, lastPeriod + 1)
-  // fallback: 断在最后一个完整词
-  const lastSpace = truncated.lastIndexOf(' ')
-  return lastSpace > maxLen * 0.6 ? truncated.substring(0, lastSpace) : truncated
-}
-
-/**
- * POST /api/ai/generate-question (非流式)
- */
 router.post('/generate-question', async (req, res) => {
+  const controller = new AbortController()
+  res.on('close', () => controller.abort())
   try {
-    const { category, existingTitles = [] } = req.body
-    if (!category) return res.status(400).json({ error: '缺少category参数' })
-
-    const systemPrompt = buildQuestionSystemPrompt()
-    const userPrompt = buildQuestionUserPrompt(category, existingTitles)
-
-    const maxTokens = category === 'coding' ? 500 : 180
-    const response = await callAI(systemPrompt, userPrompt, { temperature: 0.9, max_tokens: maxTokens })
-
-    // 解析 JSON 元信息（复用流式端的 parseMetadata）
-    const lines = response.split('\n')
-    const { difficulty: parsedDiff, topic: parsedTopic, bodyLines } = parseMetadata(lines)
-    const difficulty = parsedDiff
-    const topic = parsedTopic || ''
-    const bodyText = bodyLines.join('\n').trim()
-    const displayLines = bodyText.split('\n').filter(Boolean)
-    const title = displayLines[0]?.replace(/^#+\s*/, '').replace(/^\*\*/, '').replace(/\*\*$/, '').trim() || `${category} 面试题`
-    let content = displayLines.slice(1).join('\n').trim() || bodyText
-
-    // 非 coding 类题目截断更短
-    const maxLen = category === 'coding' ? 600 : 280
-    content = smartTruncate(content, maxLen)
-
-    res.json({ title, content, difficulty, category, topic })
+    const { input, store } = context(req)
+    const question = await generateQuestion(store, input, {
+      signal: controller.signal,
+      knowledgeService: req.app.locals.knowledgeService
+    })
+    if (!res.destroyed) {
+      res.json({ ...question, category: question.categoryId })
+    }
   } catch (error) {
-    console.error('生成题目失败:', error.message)
-    res.status(500).json({ error: '生成题目失败', message: error.message })
+    const failure = aiError(error, 'AI 服务调用失败，请检查连接或额度后重试')
+    if (!res.destroyed) {
+      res.status(failure.status).json({ error: failure.message })
+    }
   }
 })
 
-/**
- * POST /api/ai/generate-question-stream (SSE)
- */
 router.post('/generate-question-stream', async (req, res) => {
-  const { category, existingTitles = [] } = req.body
-  if (!category) return res.status(400).json({ error: '缺少category参数' })
-
+  let requestContext
+  try {
+    requestContext = context(req)
+  } catch (error) {
+    return res.status(error.status || 400).json({ error: error.message })
+  }
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')
-  res.setHeader('X-Accel-Buffering', 'no')
   res.flushHeaders()
-
+  const controller = new AbortController()
+  res.on('close', () => controller.abort())
+  const send = (value) => {
+    if (!res.destroyed && !res.writableEnded) {
+      res.write('data: ' + JSON.stringify(value) + '\n\n')
+    }
+  }
   try {
-    const { systemPrompt, userPrompt } = buildStreamQuestionPrompt(category, existingTitles)
-    const maxTokens = category === 'coding' ? 500 : 150
-    const stream = await callAIStream(systemPrompt, userPrompt, { temperature: 0.9, max_tokens: maxTokens })
-
-    let fullContent = ''
-    let buffer = ''
-    let finished = false
-
-    function sendDone() {
-      if (finished || res.writableEnded) return
-      finished = true
-      const contentLines = fullContent.split('\n').filter(Boolean)
-      const { difficulty, topic, bodyLines } = parseMetadata(contentLines)
-      const title = bodyLines[0]?.replace(/^#+\s*/, '').replace(/^\*\*/, '').replace(/\*\*$/, '').trim() || '题目'
-      // 再次确保 body 中没有残留的 JSON 元数据
-      let body = bodyLines.slice(1).join('\n').trim()
-      body = body.replace(/\n?\{[^{}]*"difficulty"[^{}]*\}/g, '').trim()
-      if (!body) body = fullContent.replace(/\n?\{[^{}]*"difficulty"[^{}]*\}/g, '').trim()
-      res.write(`data: ${JSON.stringify({ done: true, title, body, difficulty, topic })}\n\n`)
-      res.end()
-    }
-
-    function parseSSEStream(chunk) {
-      if (finished) return true
-      buffer += chunk.toString()
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue
-        const data = line.slice(6).trim()
-        if (data === '[DONE]') {
-          sendDone()
-          return true
-        }
-        try {
-          const parsed = JSON.parse(data)
-          const content = parsed.choices?.[0]?.delta?.content
-          if (content) {
-            fullContent += content
-            res.write(`data: ${JSON.stringify({ content, fullContent })}\n\n`)
-          }
-        } catch { /* skip malformed */ }
-      }
-      return false
-    }
-
-    stream.on('data', (chunk) => { parseSSEStream(chunk) })
-
-    stream.on('end', () => { sendDone() })
-
-    stream.on('error', (err) => {
-      console.error('Stream error:', err.message)
-      if (!res.writableEnded) {
-        res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`)
-        res.end()
-      }
+    const question = await generateQuestion(requestContext.store, requestContext.input, {
+      stream: true,
+      knowledgeService: req.app.locals.knowledgeService,
+      signal: controller.signal,
+      onPreview: (fullContent) => send({ content: '', fullContent })
     })
-
-    req.on('close', () => {
-      if (stream.destroy) stream.destroy()
+    send({
+      done: true,
+      title: question.title,
+      body: question.content,
+      difficulty: question.difficulty,
+      topic: question.topic,
+      question
     })
   } catch (error) {
-    console.error('流式生成失败:', error.message)
+    if (!controller.signal.aborted) {
+      send({ error: aiError(error, '题目生成失败，请检查连接或额度后重试').message })
+    }
+  } finally {
     if (!res.writableEnded) {
-      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`)
       res.end()
     }
   }

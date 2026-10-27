@@ -1,23 +1,44 @@
 {
-  "name": "ai-interview-backend",
+  "name": "ai-frontend-interview-assistant-server",
   "version": "1.0.0",
   "description": "AI前端面试助手后端API服务",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "node --watch server.js",
+    "test": "node --test test/*.test.js",
+    "db:setup": "node scripts/database.js setup",
+    "db:migrate": "node scripts/database.js migrate",
+    "test:ai": "node scripts/check-ai-quality.js",
+    "test:rag": "node scripts/check-rag.js",
+    "knowledge:download": "node scripts/download-embedding.js",
+    "knowledge:setup": "node scripts/setup-local-rag.js",
+    "knowledge:import": "node scripts/knowledge.js import",
+    "knowledge:migrate": "node scripts/simplify-knowledge.js",
+    "knowledge:index": "node scripts/knowledge.js index",
+    "knowledge:status": "node scripts/knowledge.js status"
   },
   "dependencies": {
-    "axios": "^1.6.2",
-    "cors": "^2.8.5",
+    "@huggingface/transformers": "3.8.1",
+    "axios": "^1.20.0",
     "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "express-rate-limit": "^7.5.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
+    "express": "^4.22.3",
+    "express-rate-limit": "^7.5.0",
+    "mysql2": "^3.24.5"
   },
   "engines": {
-    "node": ">=16.0.0"
-  }
+    "node": ">=22.13.0"
+  },
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DDS-195/AI-interview-react.git",
+    "directory": "backend"
+  },
+  "homepage": "https://github.com/DDS-195/AI-interview-react#readme",
+  "bugs": {
+    "url": "https://github.com/DDS-195/AI-interview-react/issues"
+  },
+  "author": "DDS-195",
+  "license": "UNLICENSED"
 }

@@ -1,8 +1,12 @@
+// 生成网络流和打字机动画分别管理；取消请求与阻止旧回调需要同时处理。
 import { useState, useCallback, useRef, useEffect } from 'react'
-import type { Question } from '../types'
+import type { Question, QuestionMode } from '../types'
 import { generateAIQuestionStream } from '../utils/aiRequest'
 
 interface UseQuestionStreamOptions {
+  mode?: QuestionMode
+  topicId?: string
+  difficulty?: Question['difficulty']
   categoryId: string
   existingTitles: string[]
   onQuestionGenerated: (question: Question) => void
@@ -13,36 +17,9 @@ interface UseQuestionStreamReturn {
   streamingContent: string
   streamingTitle: string
   hasStarted: boolean
+  error: string | null
   startStreaming: () => void
   abortStream: () => void
-}
-
-function stripTrailingJSON(text: string): string {
-  const lines = text.split('\n')
-  const last = lines[lines.length - 1]?.trim() || ''
-
-  // 最后一行整个就是 JSON 元数据
-  if (/^\{[^{}]*"difficulty"[^{}]*\}$/.test(last)) {
-    return lines.slice(0, -1).join('\n').trim()
-  }
-
-  // JSON 拼在最后一行末尾
-  const tailMatch = last.match(/\{[^{}]*"difficulty"[^{}]*\}$/)
-  if (tailMatch) {
-    const cleaned = last.slice(0, -tailMatch[0].length).trim()
-    lines[lines.length - 1] = cleaned
-    return lines.filter(Boolean).join('\n')
-  }
-
-  // 兜底：尝试 JSON.parse 检测是否包含元数据
-  try {
-    const parsed = JSON.parse(last)
-    if (parsed && parsed.difficulty) {
-      return lines.slice(0, -1).join('\n').trim()
-    }
-  } catch {}
-
-  return text
 }
 
 // ====== 打字机动画层（隔离在 hook 内部，不污染外部） ======
@@ -67,6 +44,10 @@ function useTypewriter() {
   }, [stop])
 
   const push = useCallback((fullText: string) => {
+    if (!fullText.startsWith(fullBufferRef.current)) {
+      revealedRef.current = 0
+      setDisplayText('')
+    }
     fullBufferRef.current = fullText
     // 如果还没在跑动画，启动
     if (timerRef.current === null) {
@@ -88,12 +69,15 @@ function useTypewriter() {
     }
   }, [])
 
-  const finish = useCallback((fullText: string) => {
-    stop()
-    revealedRef.current = fullText.length
-    fullBufferRef.current = fullText
-    setDisplayText(fullText)
-  }, [stop])
+  const finish = useCallback(
+    (fullText: string) => {
+      stop()
+      revealedRef.current = fullText.length
+      fullBufferRef.current = fullText
+      setDisplayText(fullText)
+    },
+    [stop]
+  )
 
   // 组件卸载时清理定时器
   useEffect(() => () => stop(), [stop])
@@ -102,6 +86,9 @@ function useTypewriter() {
 }
 
 export function useQuestionStream({
+  mode = 'theory',
+  topicId,
+  difficulty,
   categoryId,
   existingTitles,
   onQuestionGenerated
@@ -109,9 +96,17 @@ export function useQuestionStream({
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingTitle, setStreamingTitle] = useState('')
   const [hasStarted, setHasStarted] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const lastCleanRef = useRef('')
-  const { displayText: streamingContent, push: pushTypewriter, finish: finishTypewriter, reset: resetTypewriter } = useTypewriter()
+  // 取消不能阻止所有已排队回调，递增请求身份后旧内容、完成和错误都失效。
+  const generationRef = useRef(0)
+  const {
+    displayText: streamingContent,
+    push: pushTypewriter,
+    finish: finishTypewriter,
+    reset: resetTypewriter
+  } = useTypewriter()
 
   // ref 用于 startStreaming 守卫，避免闭包读到的 isStreaming 是旧值
   const isStreamingRef = useRef(isStreaming)
@@ -121,20 +116,29 @@ export function useQuestionStream({
   existingTitlesRef.current = existingTitles
   const categoryIdRef = useRef(categoryId)
   categoryIdRef.current = categoryId
+  const optionsRef = useRef({ mode, topicId, difficulty })
+  optionsRef.current = { mode, topicId, difficulty }
   const onGeneratedRef = useRef(onQuestionGenerated)
   onGeneratedRef.current = onQuestionGenerated
 
   useEffect(() => {
     return () => {
+      generationRef.current += 1
       abortRef.current?.abort()
     }
   }, [])
 
   const startStreaming = useCallback(() => {
-    if (isStreamingRef.current) return
+    if (isStreamingRef.current) {
+      return
+    }
 
+    const generation = ++generationRef.current
+    isStreamingRef.current = true
     abortRef.current?.abort()
     resetTypewriter()
+    lastCleanRef.current = ''
+    setError(null)
 
     setIsStreaming(true)
     setStreamingTitle('')
@@ -142,30 +146,60 @@ export function useQuestionStream({
 
     const cid = categoryIdRef.current
     const titles = existingTitlesRef.current
+    const options = optionsRef.current
+    // 同时检查请求版本和出题范围，防止筛选变化后旧流覆盖新选择。
+    const isCurrent = () =>
+      generation === generationRef.current &&
+      cid === categoryIdRef.current &&
+      options.mode === optionsRef.current.mode &&
+      options.topicId === optionsRef.current.topicId &&
+      options.difficulty === optionsRef.current.difficulty
 
     const controller = generateAIQuestionStream(
       cid,
       titles,
       (chunk: string) => {
-        const cleanContent = stripTrailingJSON(chunk)
+        if (!isCurrent()) {
+          return
+        }
+        const cleanContent = chunk
         lastCleanRef.current = cleanContent
-        const lines = cleanContent.split('\n').filter(Boolean)
-        const title = lines[0]?.replace(/^#+\s*/, '').replace(/^\*\*/, '').replace(/\*\*$/, '').trim() || ''
-        if (title) setStreamingTitle(title)
-        pushTypewriter(cleanContent)
-        setHasStarted(true)
+        const lines = cleanContent.split('\n')
+        const title =
+          lines[0]
+            ?.replace(/^#+\s*/, '')
+            .replace(/^\*\*/, '')
+            .replace(/\*\*$/, '')
+            .trim() || ''
+        setStreamingTitle(title)
+        pushTypewriter(lines.slice(1).join('\n'))
+        setHasStarted(Boolean(cleanContent))
       },
-      (title: string, body: string, difficulty: string, topic: string) => {
+      (
+        title: string,
+        body: string,
+        difficulty: string,
+        topic: string,
+        generatedQuestion?: Question
+      ) => {
+        if (!isCurrent()) {
+          return
+        }
         const finalTitle = title || `${cid} 面试题`
         const finalContent = body || lastCleanRef.current
         finishTypewriter(finalContent)
-        const newQuestion: Question = {
-          id: `ai-${Date.now()}`,
+        const newQuestion: Question = generatedQuestion || {
+          id: `ai-${crypto.randomUUID()}`,
+          topic,
           categoryId: cid,
           title: finalTitle,
           content: finalContent,
-          difficulty: (['easy', 'medium', 'hard'].includes(difficulty) ? difficulty : 'medium') as Question['difficulty'],
-          type: cid === 'coding' ? 'code' : 'text'
+          difficulty: (['easy', 'medium', 'hard'].includes(difficulty)
+            ? difficulty
+            : 'medium') as Question['difficulty'],
+          type: options.mode === 'coding' ? 'code' : 'text',
+          mode: options.mode,
+          topicId: options.topicId
         }
         onGeneratedRef.current(newQuestion)
         isStreamingRef.current = false
@@ -173,23 +207,39 @@ export function useQuestionStream({
         setHasStarted(false)
       },
       (error: string) => {
-        console.error('生成题目失败:', error)
+        if (!isCurrent()) {
+          return
+        }
+        setError(error)
+        resetTypewriter()
         isStreamingRef.current = false
         setIsStreaming(false)
         setHasStarted(false)
-      }
+      },
+      options
     )
 
     abortRef.current = controller
-  }, [isStreaming, resetTypewriter, pushTypewriter, finishTypewriter])
+  }, [resetTypewriter, pushTypewriter, finishTypewriter])
 
   const abortStream = useCallback(() => {
+    generationRef.current += 1
     abortRef.current?.abort()
     isStreamingRef.current = false
     setIsStreaming(false)
     setHasStarted(false)
+    setError(null)
+    setStreamingTitle('')
     resetTypewriter()
   }, [resetTypewriter])
 
-  return { isStreaming, streamingContent, streamingTitle, hasStarted, startStreaming, abortStream }
+  return {
+    isStreaming,
+    streamingContent,
+    streamingTitle,
+    hasStarted,
+    error,
+    startStreaming,
+    abortStream
+  }
 }

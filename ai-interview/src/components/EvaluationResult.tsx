@@ -1,11 +1,19 @@
+// 评分弹窗只接收已确认结果，计算和持久化在后端完成。
 import { Modal, Progress } from 'antd'
+import EvaluationContent from './EvaluationContent'
 import type { AIEvaluation } from '../types'
-import { getScoreColor, formatParagraphs } from '../utils/format'
+import { getScoreColor } from '../utils/format'
 
 function getScoreLabel(score: number): string {
-  if (score >= 90) return '优秀'
-  if (score >= 80) return '良好'
-  if (score >= 60) return '一般'
+  if (score >= 90) {
+    return '优秀'
+  }
+  if (score >= 80) {
+    return '良好'
+  }
+  if (score >= 60) {
+    return '一般'
+  }
   return '需改进'
 }
 
@@ -20,7 +28,9 @@ export default function EvaluationResult({
   visible,
   onClose
 }: EvaluationResultProps) {
-  if (!evaluationResult) return null
+  if (!evaluationResult) {
+    return null
+  }
 
   const color = getScoreColor(evaluationResult.score)
   const label = getScoreLabel(evaluationResult.score)
@@ -33,6 +43,7 @@ export default function EvaluationResult({
       footer={null}
       width={600}
       className="eval-modal"
+      rootClassName="eval-modal-root"
       centered
     >
       <div className="eval-score-wrapper">
@@ -41,36 +52,18 @@ export default function EvaluationResult({
           percent={evaluationResult.score}
           strokeColor={{ '0%': color, '100%': color }}
           size={100}
-          format={percent => `${percent}`}
+          format={(percent) => `${percent}`}
         />
-        <div className="eval-score-text" style={{ color }}>
+        <div
+          className="eval-score-text"
+          style={{ color }}
+        >
           {evaluationResult.score} 分 · {label}
         </div>
+        <div style={{ fontSize: 12 }}>分数反映本题必要要求的完成度，可选拓展不扣分。</div>
       </div>
 
-      <div className="eval-section">
-        <div className="eval-section-title">评估反馈</div>
-        <div className="eval-section-content">{formatParagraphs(evaluationResult.feedback)}</div>
-      </div>
-
-      {evaluationResult.correctAnswer && (
-        <div className="eval-section">
-          <div className="eval-section-title">参考答案 / 改进方向</div>
-          <div className="eval-section-content">{formatParagraphs(evaluationResult.correctAnswer)}</div>
-        </div>
-      )}
-
-      {evaluationResult.suggestions && evaluationResult.suggestions.length > 0 && (
-        <div className="eval-section">
-          <div className="eval-section-title">改进建议</div>
-          {evaluationResult.suggestions.map((s, i) => (
-            <div key={i} className="eval-suggestion-item">
-              <div className="eval-suggestion-num">{i + 1}</div>
-              <span style={{ fontSize: 14 }}>{s}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      <EvaluationContent evaluation={evaluationResult} />
     </Modal>
   )
 }

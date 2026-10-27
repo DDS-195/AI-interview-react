@@ -1,7 +1,7 @@
-import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
+// 收藏动作委托数据层串行执行，避免快速操作被过期全量快照覆盖。
+import { createContext, useContext, useCallback, useMemo, type ReactNode } from 'react'
 import type { FavoriteQuestion } from '../types'
-import { saveFavorites, loadFavorites } from '../utils/localStorage'
-import { uploadCollection } from '../utils/cloudSync'
+import { useDataContext } from './DataContext'
 
 interface FavoriteContextType {
   favoriteQuestions: FavoriteQuestion[]
@@ -9,70 +9,52 @@ interface FavoriteContextType {
   isFavorite: (questionId: string) => boolean
   removeFavorite: (fav: FavoriteQuestion) => void
   clearAll: () => void
-  loadFavoritesFromStorage: () => void
 }
 
 const FavoriteContext = createContext<FavoriteContextType | null>(null)
 
 export function FavoriteProvider({ children }: { children: ReactNode }) {
-  const [favoriteQuestions, setFavoriteQuestions] = useState<FavoriteQuestion[]>([])
-
-  // 云同步
-  useEffect(() => {
-    uploadCollection('favorites', favoriteQuestions)
-  }, [favoriteQuestions])
-
-  const toggleFavorite = useCallback((questionId: string) => {
-    setFavoriteQuestions(prev => {
-      const idx = prev.findIndex(f => f.questionId === questionId)
-      let updated: FavoriteQuestion[]
-      if (idx >= 0) {
-        updated = prev.filter(f => f.questionId !== questionId)
-      } else {
-        updated = [...prev, { questionId, addedAt: new Date().toISOString() }]
-      }
-      saveFavorites(updated)
-      return updated
-    })
-  }, [])
-
-  const isFavorite = useCallback((questionId: string) => {
-    return favoriteQuestions.some(f => f.questionId === questionId)
-  }, [favoriteQuestions])
-
-  const removeFavorite = useCallback((fav: FavoriteQuestion) => {
-    setFavoriteQuestions(prev => {
-      const updated = prev.filter(f => f.questionId !== fav.questionId)
-      saveFavorites(updated)
-      return updated
-    })
-  }, [])
-
-  const clearAll = useCallback(() => {
-    setFavoriteQuestions([])
-    saveFavorites([])
-  }, [])
-
-  const loadFavoritesFromStorage = useCallback(() => {
-    const saved = loadFavorites()
-    if (saved && Array.isArray(saved)) {
-      setFavoriteQuestions(saved.filter((f): f is FavoriteQuestion => !!f && typeof (f as Record<string, unknown>).questionId === 'string' && typeof (f as Record<string, unknown>).addedAt === 'string'))
-    }
-  }, [])
-
-  const value = useMemo(() => ({
-    favoriteQuestions, toggleFavorite, isFavorite, removeFavorite, clearAll, loadFavoritesFromStorage
-  }), [favoriteQuestions, toggleFavorite, isFavorite, removeFavorite, clearAll, loadFavoritesFromStorage])
-
-  return (
-    <FavoriteContext.Provider value={value}>
-      {children}
-    </FavoriteContext.Provider>
+  const { data, mutate } = useDataContext()
+  const favoriteQuestions = data.favorites
+  const favoriteIds = useMemo(
+    () => new Set(favoriteQuestions.map((f) => f.questionId)),
+    [favoriteQuestions]
   )
+
+  const toggleFavorite = useCallback(
+    (questionId: string) => {
+      void mutate('/favorites/toggle', 'POST', { questionId }).catch(() => {})
+    },
+    [mutate]
+  )
+  const isFavorite = useCallback(
+    (questionId: string) => {
+      return favoriteIds.has(questionId)
+    },
+    [favoriteIds]
+  )
+  const removeFavorite = useCallback(
+    (fav: FavoriteQuestion) => {
+      void mutate(`/favorites/${encodeURIComponent(fav.questionId)}`, 'DELETE').catch(() => {})
+    },
+    [mutate]
+  )
+  const clearAll = useCallback(() => {
+    void mutate('/favorites', 'DELETE').catch(() => {})
+  }, [mutate])
+
+  const value = useMemo(
+    () => ({ favoriteQuestions, toggleFavorite, isFavorite, removeFavorite, clearAll }),
+    [favoriteQuestions, toggleFavorite, isFavorite, removeFavorite, clearAll]
+  )
+
+  return <FavoriteContext.Provider value={value}>{children}</FavoriteContext.Provider>
 }
 
 export function useFavoriteContext() {
-  const ctx = useContext(FavoriteContext)
-  if (!ctx) throw new Error('useFavoriteContext must be used within FavoriteProvider')
-  return ctx
+  const context = useContext(FavoriteContext)
+  if (!context) {
+    throw new Error('useFavoriteContext must be used within FavoriteProvider')
+  }
+  return context
 }
